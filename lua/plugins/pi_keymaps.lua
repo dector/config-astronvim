@@ -47,7 +47,8 @@ return {
           -- swap default AstroNvim toggles for uz/uZ
           ["<Leader>uz"] = { function() require("snacks").toggle.zen():toggle() end, desc = "Toggle zen mode" },
           ["<Leader>uZ"] = { function() vim.cmd.HighlightColors "Toggle" end, desc = "Toggle color highlight" },
-          ["<Leader>uL"] = {
+          ["<Leader>uL"] = false,
+          ["<Leader>ul"] = {
             function()
               if vim.wo.number or vim.wo.relativenumber then
                 vim.wo.number = false
