@@ -13,6 +13,8 @@ return {
           ["J"] = { "5j", desc = "Jump 5 lines down" },
           ["K"] = { "5k", desc = "Jump 5 lines up" },
           ["gh"] = { "<Cmd>normal! K<CR>", desc = "Run keywordprg" },
+          ["]]"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
+          ["[["] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
           ["gd"] = { function() vim.lsp.buf.definition() end, desc = "Go to definition" },
           ["gD"] = { function() vim.lsp.buf.declaration() end, desc = "Go to declaration" },
           ["U"] = { "<C-r>", desc = "Redo" },
@@ -70,6 +72,8 @@ return {
             end,
             desc = "Find files",
           },
+          ["<Leader>fb"] = false,
+          ["<Leader>sb"] = { function() require("snacks").picker.buffers() end, desc = "Find buffers" },
 
           -- remap find words/recent/git files
           ["<Leader>fw"] = false,
