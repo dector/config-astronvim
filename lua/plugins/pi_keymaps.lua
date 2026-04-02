@@ -19,6 +19,10 @@ return {
           },
           ["gp"] = { "<Cmd>PiSend<CR>", desc = "PiSend" },
 
+          -- swap default AstroNvim toggles for uz/uZ
+          ["<Leader>uz"] = { function() require("snacks").toggle.zen():toggle() end, desc = "Toggle zen mode" },
+          ["<Leader>uZ"] = { function() vim.cmd.HighlightColors "Toggle" end, desc = "Toggle color highlight" },
+
           -- same action as AstroNvim's <leader>o
           ["<Leader>q"] = {
             function()
