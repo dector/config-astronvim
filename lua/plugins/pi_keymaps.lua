@@ -19,6 +19,9 @@ return {
 
           -- disable original explorer focus key
           ["<Leader>o"] = false,
+
+          -- disable default pi-nvim launcher mapping
+          ["<Leader>p"] = false,
           ["gP"] = {
             function()
               local pi_follow = require "utils.pi_follow"
