@@ -3,6 +3,11 @@ return {
   {
     "AstroNvim/astrocore",
     opts = {
+      options = {
+        opt = {
+          scrolloff = 10,
+        },
+      },
       mappings = {
         n = {
           ["J"] = { "5j", desc = "Jump 5 lines down" },
