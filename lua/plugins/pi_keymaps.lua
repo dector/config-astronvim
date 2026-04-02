@@ -22,6 +22,8 @@ return {
           ["gd"] = { function() vim.lsp.buf.definition() end, desc = "Go to definition" },
           ["gD"] = { function() vim.lsp.buf.declaration() end, desc = "Go to declaration" },
           ["U"] = { "<C-r>", desc = "Redo" },
+          ["q"] = { "<Nop>", desc = "Disable macro recording on q" },
+          ["Q"] = { "q", desc = "Record macro" },
           ["<Leader>aj"] = { "J", desc = "Join line with next" },
           ["<Leader>'r"] = { "<Cmd>AstroReload<CR>", desc = "Reload AstroNvim config" },
 
