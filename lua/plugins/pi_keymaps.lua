@@ -10,11 +10,26 @@ return {
           ["gh"] = { "<Cmd>normal! K<CR>", desc = "Run keywordprg" },
           ["<Leader>aj"] = { "J", desc = "Join line with next" },
           ["<Leader>'r"] = { "<Cmd>AstroReload<CR>", desc = "Reload AstroNvim config" },
+
+          -- disable original explorer focus key
+          ["<Leader>o"] = false,
           ["<Leader>pv"] = {
             function() vim.cmd "vsplit | terminal pi --extension npm:pi-nvim" end,
             desc = "Open Pi terminal (vertical)",
           },
           ["gp"] = { "<Cmd>PiSend<CR>", desc = "PiSend" },
+
+          -- same action as AstroNvim's <leader>o
+          ["<Leader>q"] = {
+            function()
+              if vim.bo.filetype == "neo-tree" then
+                vim.cmd.wincmd "p"
+              else
+                vim.cmd.Neotree "focus"
+              end
+            end,
+            desc = "Toggle Explorer Focus",
+          },
 
           -- remap find files
           ["<Leader>ff"] = false,
