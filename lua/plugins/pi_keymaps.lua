@@ -18,6 +18,7 @@ return {
           ["[["] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
           ["<C-]>"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
           ["<C-[>"] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
+          ["<S-Esc>"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
           ["gd"] = { function() vim.lsp.buf.definition() end, desc = "Go to definition" },
           ["gD"] = { function() vim.lsp.buf.declaration() end, desc = "Go to declaration" },
           ["U"] = { "<C-r>", desc = "Redo" },
