@@ -14,14 +14,28 @@ return {
           -- disable original explorer focus key
           ["<Leader>o"] = false,
           ["<Leader>pv"] = {
-            function() vim.cmd "vsplit | terminal pi --extension npm:pi-nvim" end,
-            desc = "Open Pi terminal (vertical)",
+            function()
+              local pi_follow = require "utils.pi_follow"
+              pi_follow.setup()
+              vim.cmd "vsplit | terminal pi --extension npm:pi-nvim"
+              local win = vim.api.nvim_get_current_win()
+              vim.schedule(function() pi_follow.set_follow(win, true) end)
+            end,
+            desc = "Open Pi terminal (vertical, FOLLOW)",
           },
           ["gp"] = { "<Cmd>PiSend<CR>", desc = "PiSend" },
 
           -- swap default AstroNvim toggles for uz/uZ
           ["<Leader>uz"] = { function() require("snacks").toggle.zen():toggle() end, desc = "Toggle zen mode" },
           ["<Leader>uZ"] = { function() vim.cmd.HighlightColors "Toggle" end, desc = "Toggle color highlight" },
+          ["<Leader>uf"] = {
+            function()
+              local pi_follow = require "utils.pi_follow"
+              pi_follow.setup()
+              pi_follow.toggle_current()
+            end,
+            desc = "Toggle terminal FOLLOW",
+          },
 
           -- same action as AstroNvim's <leader>o
           ["<Leader>q"] = {
