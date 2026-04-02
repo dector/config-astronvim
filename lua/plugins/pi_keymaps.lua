@@ -8,6 +8,7 @@ return {
           ["J"] = { "5j", desc = "Jump 5 lines down" },
           ["K"] = { "5k", desc = "Jump 5 lines up" },
           ["gh"] = { "<Cmd>normal! K<CR>", desc = "Run keywordprg" },
+          ["U"] = { "<C-r>", desc = "Redo" },
           ["<Leader>aj"] = { "J", desc = "Join line with next" },
           ["<Leader>'r"] = { "<Cmd>AstroReload<CR>", desc = "Reload AstroNvim config" },
 
