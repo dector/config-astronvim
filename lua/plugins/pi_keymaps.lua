@@ -6,6 +6,7 @@ return {
       options = {
         opt = {
           scrolloff = 10,
+          relativenumber = false,
         },
       },
       mappings = {
