@@ -19,7 +19,7 @@ return {
 
           -- disable original explorer focus key
           ["<Leader>o"] = false,
-          ["<Leader>pv"] = {
+          ["gP"] = {
             function()
               local pi_follow = require "utils.pi_follow"
               pi_follow.setup()
