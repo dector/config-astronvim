@@ -89,7 +89,8 @@ return {
 
           -- remap find files
           ["<Leader>ff"] = false,
-          ["<Leader>sf"] = {
+          ["<Leader>sf"] = { function() require("snacks").picker.git_files() end, desc = "Find git tracked files" },
+          ["<Leader>sF"] = {
             function()
               require("snacks").picker.files {
                 hidden = vim.tbl_get((vim.uv or vim.loop).fs_stat ".git" or {}, "type") == "directory",
