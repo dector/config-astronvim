@@ -103,10 +103,7 @@ return {
           -- remap find words/recent/git files
           ["<Leader>fw"] = false,
           ["<Leader>sw"] = { function() require("snacks").picker.grep() end, desc = "Find words" },
-          ["<Leader>st"] = {
-            function() require("snacks").picker.grep { search = "TODO|FIXME|HACK|NOTE", regex = true } end,
-            desc = "Find TODOs",
-          },
+          ["<Leader>st"] = { function() require("snacks").picker.todo_comments() end, desc = "Find TODOs" },
           ["<Leader>fo"] = false,
           ["<Leader>so"] = { function() require("snacks").picker.recent() end, desc = "Find old files" },
           ["<Leader>fg"] = false,
