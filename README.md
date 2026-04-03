@@ -18,7 +18,7 @@ Compared to the base AstroNvim template configuration, these are my repo changes
 - **Added navigation/reload keymaps** (`lua/plugins/pi_keymaps.lua`)
   - `J` → move down 5 lines (`5j`)
   - `K` → move up 5 lines (`5k`)
-  - `gh` → run `K` (`keywordprg` help lookup)
+  - `gh` → hover diagnostics (`vim.diagnostic.open_float`)
   - `<Leader>aj` → join current line with next (`J`)
   - `<Leader>'r` → `:AstroReload<CR>`
 - **Remapped find-related leader shortcuts** (`lua/plugins/pi_keymaps.lua`)

@@ -13,7 +13,7 @@ return {
         n = {
           ["J"] = { "5j", desc = "Jump 5 lines down" },
           ["K"] = { "5k", desc = "Jump 5 lines up" },
-          ["gh"] = { "<Cmd>normal! K<CR>", desc = "Run keywordprg" },
+          ["gh"] = { function() vim.diagnostic.open_float() end, desc = "Hover diagnostics" },
           ["]]"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
           ["[["] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
           ["<C-]>"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
