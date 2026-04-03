@@ -111,7 +111,56 @@ return {
           ["<Leader>fo"] = false,
           ["<Leader>so"] = { function() require("snacks").picker.recent() end, desc = "Find old files" },
           ["<Leader>fg"] = false,
-          ["<Leader>sg"] = { function() require("snacks").picker.git_files() end, desc = "Find git files" },
+          ["<Leader>sg"] = {
+            function()
+              if vim.fn.executable "git" ~= 1 then
+                vim.notify("git is not installed", vim.log.levels.ERROR)
+                return
+              end
+
+              vim.fn.system "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+              if vim.v.shell_error ~= 0 then
+                vim.notify("Not inside a git repository", vim.log.levels.WARN)
+                return
+              end
+
+              local unstaged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --relative --diff-filter=ACMR"
+              local staged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --cached --relative --diff-filter=ACMR"
+
+              local files, seen = {}, {}
+              for _, f in ipairs(vim.list_extend(unstaged, staged)) do
+                if f ~= "" and not seen[f] then
+                  seen[f] = true
+                  files[#files + 1] = f
+                end
+              end
+
+              if #files == 0 then
+                vim.notify("No changed git files", vim.log.levels.INFO)
+                return
+              end
+
+              local grep_finder = require "snacks.picker.source.grep"
+
+              require("snacks").picker.pick {
+                source = "grep",
+                title = "Grep in changed git files",
+                live = true,
+                dirs = files,
+                finder = function(opts, ctx)
+                  if ctx.filter.search == "" then
+                    local items = {}
+                    for _, f in ipairs(files) do
+                      items[#items + 1] = { file = f, text = f }
+                    end
+                    return items
+                  end
+                  return grep_finder.grep(opts, ctx)
+                end,
+              }
+            end,
+            desc = "Search text in changed git files",
+          },
         },
         x = {
           ["gp"] = { ":<C-u>PiSendSelection<CR>", desc = "PiSendSelection" },
