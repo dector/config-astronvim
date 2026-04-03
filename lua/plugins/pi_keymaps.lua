@@ -126,9 +126,10 @@ return {
 
               local unstaged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --relative --diff-filter=ACMR"
               local staged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --cached --relative --diff-filter=ACMR"
+              local untracked = vim.fn.systemlist "git -c core.quotepath=off ls-files --others --exclude-standard"
 
               local files, seen = {}, {}
-              for _, f in ipairs(vim.list_extend(unstaged, staged)) do
+              for _, f in ipairs(vim.list_extend(vim.list_extend(unstaged, staged), untracked)) do
                 if f ~= "" and not seen[f] then
                   seen[f] = true
                   files[#files + 1] = f
