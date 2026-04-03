@@ -74,6 +74,34 @@ return {
             end,
             desc = "Toggle terminal FOLLOW",
           },
+          ["<Leader>gP"] = {
+            function()
+              local curtab = vim.api.nvim_get_current_tabpage()
+              local tab_wins = vim.api.nvim_tabpage_list_wins(curtab)
+              local has_preview = false
+              local preview_wins = {}
+
+              for _, win in ipairs(tab_wins) do
+                local is_diff = vim.api.nvim_get_option_value("diff", { win = win })
+                local buf = vim.api.nvim_win_get_buf(win)
+                local name = vim.api.nvim_buf_get_name(buf)
+                local is_gitsigns_preview = name:match "^gitsigns://" ~= nil
+
+                if is_diff or is_gitsigns_preview then has_preview = true end
+                if is_gitsigns_preview then table.insert(preview_wins, win) end
+              end
+
+              if has_preview then
+                vim.cmd "diffoff!"
+                for _, win in ipairs(preview_wins) do
+                  if vim.api.nvim_win_is_valid(win) then pcall(vim.api.nvim_win_close, win, true) end
+                end
+              else
+                require("gitsigns").diffthis()
+              end
+            end,
+            desc = "Toggle full-file git hunk preview",
+          },
 
           -- same action as AstroNvim's <leader>o
           ["<Leader>q"] = {
