@@ -47,16 +47,7 @@ return {
 
           -- disable default pi-nvim launcher mapping
           ["<Leader>p"] = false,
-          ["gP"] = {
-            function()
-              local pi_follow = require "utils.pi_follow"
-              pi_follow.setup()
-              vim.cmd "vsplit | terminal pi --extension npm:pi-nvim"
-              local win = vim.api.nvim_get_current_win()
-              vim.schedule(function() pi_follow.set_follow(win, true) end)
-            end,
-            desc = "Open Pi terminal (vertical, FOLLOW)",
-          },
+          ["gP"] = { "<Cmd>Pi<CR>", desc = "Pi" },
           ["gp"] = { "<Cmd>PiSend<CR>", desc = "PiSend" },
 
           -- swap default AstroNvim toggles for uz/uZ
@@ -112,6 +103,10 @@ return {
           -- remap find words/recent/git files
           ["<Leader>fw"] = false,
           ["<Leader>sw"] = { function() require("snacks").picker.grep() end, desc = "Find words" },
+          ["<Leader>st"] = {
+            function() require("snacks").picker.grep { search = "TODO|FIXME|HACK|NOTE", regex = true } end,
+            desc = "Find TODOs",
+          },
           ["<Leader>fo"] = false,
           ["<Leader>so"] = { function() require("snacks").picker.recent() end, desc = "Find old files" },
           ["<Leader>fg"] = false,
