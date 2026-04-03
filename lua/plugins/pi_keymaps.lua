@@ -104,6 +104,7 @@ return {
           ["<Leader>fl"] = false,
           ["<Leader>fw"] = false,
           ["<Leader>sl"] = { function() require("snacks").picker.lines() end, desc = "Search lines" },
+          ["<Leader>se"] = { function() require("snacks").picker.grep_word() end, desc = "Find current word" },
           ["<Leader>sw"] = { function() require("snacks").picker.grep() end, desc = "Find words" },
           ["<Leader>st"] = { function() require("snacks").picker.todo_comments() end, desc = "Find TODOs" },
           ["<Leader>fo"] = false,
