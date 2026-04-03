@@ -13,12 +13,27 @@ return {
         n = {
           ["J"] = { "5j", desc = "Jump 5 lines down" },
           ["K"] = { "5k", desc = "Jump 5 lines up" },
+          ["H"] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
+          ["L"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
+          ["<C-S-H>"] = {
+            function()
+              local col = vim.api.nvim_win_get_cursor(0)[2]
+              vim.api.nvim_win_set_cursor(0, { vim.fn.line "w0", col })
+              vim.cmd "normal! zz"
+            end,
+            desc = "Cursor to first visible line (centered)",
+          },
+          ["<C-S-L>"] = {
+            function()
+              local col = vim.api.nvim_win_get_cursor(0)[2]
+              vim.api.nvim_win_set_cursor(0, { vim.fn.line "w$", col })
+              vim.cmd "normal! zz"
+            end,
+            desc = "Cursor to last visible line (centered)",
+          },
           ["gh"] = { function() vim.diagnostic.open_float() end, desc = "Hover diagnostics" },
           ["]]"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
           ["[["] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
-          ["<C-]>"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
-          ["<C-[>"] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
-          ["<S-Esc>"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
           ["gd"] = { function() vim.lsp.buf.definition() end, desc = "Go to definition" },
           ["gD"] = { function() vim.lsp.buf.declaration() end, desc = "Go to declaration" },
           ["U"] = { "<C-r>", desc = "Redo" },
