@@ -7,6 +7,9 @@ local SIGN_HL = "BookmarkSign"
 local signs_ns = nil
 local setup_done = false
 
+local DELETE_HISTORY_LIMIT = 10
+local deleted_history_by_root = {}
+
 local function uv_stat(path)
   local uv = vim.uv or vim.loop
   return uv.fs_stat(path)
@@ -18,9 +21,7 @@ local function ensure_sign_namespace()
   return signs_ns
 end
 
-local function apply_sign_highlight()
-  vim.api.nvim_set_hl(0, SIGN_HL, { link = "DiagnosticHint", default = true })
-end
+local function apply_sign_highlight() vim.api.nvim_set_hl(0, SIGN_HL, { link = "DiagnosticHint", default = true }) end
 
 local function get_project_root(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -34,9 +35,7 @@ local function get_project_root(bufnr)
   return cwd
 end
 
-local function storage_dir()
-  return vim.fn.stdpath("data") .. "/bookmarks"
-end
+local function storage_dir() return vim.fn.stdpath "data" .. "/bookmarks" end
 
 local function project_file(root)
   local normalized = root:gsub("/", "|"):gsub("\\", "|")
@@ -72,6 +71,43 @@ local function write_store(store, path)
   vim.fn.writefile({ payload }, path)
 end
 
+local function push_deleted_marks(root, marks)
+  if type(root) ~= "string" or type(marks) ~= "table" or #marks == 0 then return end
+
+  local history = deleted_history_by_root[root] or {}
+  for i = #marks, 1, -1 do
+    history[#history + 1] = vim.deepcopy(marks[i])
+  end
+
+  while #history > DELETE_HISTORY_LIMIT do
+    table.remove(history, 1)
+  end
+
+  deleted_history_by_root[root] = history
+end
+
+local function pop_deleted_mark(root)
+  local history = deleted_history_by_root[root]
+  if not history or #history == 0 then return nil end
+  return table.remove(history)
+end
+
+local function restore_mark(root, mark)
+  if type(mark) ~= "table" then return false end
+
+  local store, store_path = read_store(root)
+  for _, existing in ipairs(store.items or {}) do
+    local same_id = existing.id and mark.id and existing.id == mark.id
+    local same_pos = existing.path == mark.path and tonumber(existing.line) == tonumber(mark.line)
+    if same_id or same_pos then return false end
+  end
+
+  table.insert(store.items, mark)
+  store.last_mark_id = mark.id or store.last_mark_id
+  write_store(store, store_path)
+  return true
+end
+
 local function get_git_short_hash(root)
   local cmd = "git -C " .. vim.fn.shellescape(root) .. " rev-parse --short=8 HEAD 2>/dev/null"
   local out = vim.fn.system(cmd)
@@ -94,9 +130,7 @@ end
 
 local function current_location(root)
   local abs = vim.api.nvim_buf_get_name(0)
-  if abs == "" then
-    return nil, "Current buffer has no file path"
-  end
+  if abs == "" then return nil, "Current buffer has no file path" end
 
   local rel = vim.fs.relpath(root, abs)
   if not rel or rel == "" or vim.startswith(rel, "../") or rel == ".." then
@@ -153,9 +187,7 @@ function M.refresh_buf_signs(bufnr)
   end
 end
 
-function M.refresh_current_buf_signs()
-  M.refresh_buf_signs(vim.api.nvim_get_current_buf())
-end
+function M.refresh_current_buf_signs() M.refresh_buf_signs(vim.api.nvim_get_current_buf()) end
 
 function M.setup()
   if setup_done then return end
@@ -170,9 +202,7 @@ function M.setup()
     group = group,
     callback = function(args)
       local ok, mod = pcall(require, "utils.bookmarks")
-      if ok and type(mod.refresh_buf_signs) == "function" then
-        mod.refresh_buf_signs(args.buf)
-      end
+      if ok and type(mod.refresh_buf_signs) == "function" then mod.refresh_buf_signs(args.buf) end
     end,
   })
 
@@ -224,6 +254,42 @@ function M.add_current()
   vim.notify(string.format("Bookmark added: %s:%d", loc.rel, loc.line), vim.log.levels.INFO)
 end
 
+local function refresh_all_buf_signs()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) then M.refresh_buf_signs(bufnr) end
+  end
+end
+
+local function remove_marks(root, should_remove)
+  local store, store_path = read_store(root)
+
+  local kept, removed = {}, {}
+  for _, mark in ipairs(store.items or {}) do
+    if should_remove(mark) then
+      removed[#removed + 1] = mark
+    else
+      kept[#kept + 1] = mark
+    end
+  end
+
+  if #removed == 0 then return {} end
+
+  store.items = kept
+  if store.last_mark_id then
+    local still_exists = false
+    for _, mark in ipairs(store.items) do
+      if mark.id == store.last_mark_id then
+        still_exists = true
+        break
+      end
+    end
+    if not still_exists then store.last_mark_id = nil end
+  end
+
+  write_store(store, store_path)
+  return removed
+end
+
 function M.remove_current()
   local root = get_project_root()
   local loc, err = current_location(root)
@@ -232,24 +298,10 @@ function M.remove_current()
     return
   end
 
-  local store, store_path = read_store(root)
+  local removed = remove_marks(root, function(mark) return mark.path == loc.rel and tonumber(mark.line) == loc.line end)
+  if #removed == 0 then return end
 
-  local removed = nil
-  local kept = {}
-  for _, mark in ipairs(store.items) do
-    if (not removed) and mark.path == loc.rel and tonumber(mark.line) == loc.line then
-      removed = mark
-    else
-      kept[#kept + 1] = mark
-    end
-  end
-
-  if not removed then return end
-
-  store.items = kept
-  if store.last_mark_id == removed.id then store.last_mark_id = nil end
-  write_store(store, store_path)
-
+  push_deleted_marks(root, removed)
   M.refresh_current_buf_signs()
   vim.notify(string.format("Bookmark removed: %s:%d", loc.rel, loc.line), vim.log.levels.INFO)
 end
@@ -283,9 +335,7 @@ local function load_picker_items()
 
   local items = {}
   for _, mark in ipairs(store.items or {}) do
-    if type(mark) == "table" and type(mark.path) == "string" then
-      items[#items + 1] = to_picker_item(root, mark)
-    end
+    if type(mark) == "table" and type(mark.path) == "string" then items[#items + 1] = to_picker_item(root, mark) end
   end
 
   table.sort(items, function(a, b)
@@ -343,6 +393,70 @@ function M.show_list()
     matcher = { fuzzy = true, smartcase = true },
     preview = "file",
     focus = "input",
+    show_empty = true,
+    actions = {
+      bookmark_delete = function(picker)
+        local selected = picker:selected { fallback = true }
+        if #selected == 0 then return end
+
+        local removed_count = 0
+        local last_removed = nil
+        local deleted_marks = {}
+
+        local removed_ids = {}
+        for _, item in ipairs(selected) do
+          local mark = item and item.mark
+          if mark and mark.id and not removed_ids[mark.id] then
+            removed_ids[mark.id] = true
+            local removed = remove_marks(root, function(m) return m.id == mark.id end)
+            if #removed > 0 then
+              removed_count = removed_count + #removed
+              last_removed = removed[#removed]
+              vim.list_extend(deleted_marks, removed)
+            end
+          end
+        end
+
+        if removed_count == 0 then
+          vim.notify("No bookmark removed", vim.log.levels.INFO)
+          return
+        end
+
+        push_deleted_marks(root, deleted_marks)
+        refresh_all_buf_signs()
+
+        local updated = load_picker_items()
+        picker.opts.items = updated
+        picker:find { refresh = true }
+
+        if removed_count == 1 and last_removed then
+          vim.notify(
+            string.format("Bookmark removed: %s:%d (undo: <C-u>)", last_removed.path, tonumber(last_removed.line) or 1),
+            vim.log.levels.INFO
+          )
+        else
+          vim.notify(string.format("Removed %d bookmarks (undo: <C-u>)", removed_count), vim.log.levels.INFO)
+        end
+      end,
+      bookmark_undo_delete = function(picker)
+        local mark = pop_deleted_mark(root)
+        if not mark then
+          vim.notify("No deleted bookmarks to restore", vim.log.levels.INFO)
+          return
+        end
+
+        local restored = restore_mark(root, mark)
+        if not restored then
+          vim.notify("Bookmark already exists, nothing to restore", vim.log.levels.INFO)
+          return
+        end
+
+        refresh_all_buf_signs()
+        picker.opts.items = load_picker_items()
+        picker:find { refresh = true }
+        vim.notify(string.format("Bookmark restored: %s:%d", mark.path, tonumber(mark.line) or 1), vim.log.levels.INFO)
+      end,
+    },
     confirm = function(picker, item)
       if not item then
         picker:close()
@@ -368,6 +482,18 @@ function M.show_list()
       end)
     end,
     win = {
+      input = {
+        keys = {
+          ["<C-d>"] = { "bookmark_delete", mode = { "n", "i" }, desc = "Delete bookmark" },
+          ["<C-u>"] = { "bookmark_undo_delete", mode = { "n", "i" }, desc = "Undo bookmark delete" },
+        },
+      },
+      list = {
+        keys = {
+          ["<C-d>"] = { "bookmark_delete", mode = { "n", "x" }, desc = "Delete bookmark" },
+          ["<C-u>"] = { "bookmark_undo_delete", mode = { "n", "x" }, desc = "Undo bookmark delete" },
+        },
+      },
       preview = { title = "Preview" },
     },
   }
