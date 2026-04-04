@@ -7,7 +7,7 @@ return {
       opts.mappings = opts.mappings or {}
       opts.mappings.n = opts.mappings.n or {}
 
-      local function with_bookmarks(fn_name)
+      local function with_bookmarks(fn_name, ...)
         local mod = require "utils.bookmarks"
         if type(mod[fn_name]) ~= "function" then
           package.loaded["utils.bookmarks"] = nil
@@ -19,8 +19,10 @@ return {
           return
         end
 
-        mod[fn_name]()
+        mod[fn_name](...)
       end
+
+      with_bookmarks "setup"
 
       opts.mappings.n["<Leader>ml"] = {
         function() with_bookmarks "show_list" end,

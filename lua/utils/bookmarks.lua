@@ -1,19 +1,37 @@
 local M = {}
 
+local SIGNS_NS_NAME = "project_bookmarks"
+local SIGN_ICON = "󰃀"
+local SIGN_HL = "BookmarkSign"
+
+local signs_ns = nil
+local setup_done = false
+
 local function uv_stat(path)
   local uv = vim.uv or vim.loop
   return uv.fs_stat(path)
 end
 
-local function get_project_root()
-  local buf = vim.api.nvim_get_current_buf()
-  local name = vim.api.nvim_buf_get_name(buf)
-  local start = name ~= "" and vim.fs.dirname(name) or vim.uv.cwd()
+local function ensure_sign_namespace()
+  if signs_ns then return signs_ns end
+  signs_ns = vim.api.nvim_create_namespace(SIGNS_NS_NAME)
+  return signs_ns
+end
+
+local function apply_sign_highlight()
+  vim.api.nvim_set_hl(0, SIGN_HL, { link = "DiagnosticHint", default = true })
+end
+
+local function get_project_root(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local cwd = (vim.uv or vim.loop).cwd()
+  local start = name ~= "" and vim.fs.dirname(name) or cwd
 
   local root = vim.fs.root(start, { ".git" })
   if root and root ~= "" then return root end
 
-  return vim.uv.cwd()
+  return cwd
 end
 
 local function storage_dir()
@@ -81,7 +99,7 @@ local function current_location(root)
   end
 
   local rel = vim.fs.relpath(root, abs)
-  if not rel or rel == "" then
+  if not rel or rel == "" or vim.startswith(rel, "../") or rel == ".." then
     return nil, "Current file is outside project root"
   end
 
@@ -91,6 +109,81 @@ local function current_location(root)
     rel = rel,
     line = line,
   }
+end
+
+local function relpath_for_buf(root, bufnr)
+  local abs = vim.api.nvim_buf_get_name(bufnr)
+  if abs == "" then return nil end
+
+  local rel = vim.fs.relpath(root, abs)
+  if not rel or rel == "" or vim.startswith(rel, "../") or rel == ".." then return nil end
+
+  return rel
+end
+
+function M.refresh_buf_signs(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+
+  local ns = ensure_sign_namespace()
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+
+  if not vim.api.nvim_buf_is_loaded(bufnr) then return end
+
+  local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+  if buftype ~= "" then return end
+
+  local root = get_project_root(bufnr)
+  local rel = relpath_for_buf(root, bufnr)
+  if not rel then return end
+
+  local store = read_store(root)
+
+  for _, mark in ipairs(store.items or {}) do
+    if type(mark) == "table" and mark.path == rel then
+      local line = tonumber(mark.line)
+      if line and line >= 1 then
+        vim.api.nvim_buf_set_extmark(bufnr, ns, line - 1, 0, {
+          sign_text = SIGN_ICON,
+          sign_hl_group = SIGN_HL,
+          priority = 20,
+        })
+      end
+    end
+  end
+end
+
+function M.refresh_current_buf_signs()
+  M.refresh_buf_signs(vim.api.nvim_get_current_buf())
+end
+
+function M.setup()
+  if setup_done then return end
+  setup_done = true
+
+  ensure_sign_namespace()
+  apply_sign_highlight()
+
+  local group = vim.api.nvim_create_augroup("ProjectBookmarksSigns", { clear = true })
+
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter", "DirChanged" }, {
+    group = group,
+    callback = function(args)
+      local ok, mod = pcall(require, "utils.bookmarks")
+      if ok and type(mod.refresh_buf_signs) == "function" then
+        mod.refresh_buf_signs(args.buf)
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    group = group,
+    callback = apply_sign_highlight,
+  })
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    M.refresh_buf_signs(bufnr)
+  end
 end
 
 function M.add_current()
@@ -107,6 +200,7 @@ function M.add_current()
     if mark.path == loc.rel and tonumber(mark.line) == loc.line then
       store.last_mark_id = mark.id
       write_store(store, store_path)
+      M.refresh_current_buf_signs()
       vim.notify(string.format("Bookmark already exists: %s:%d", loc.rel, loc.line), vim.log.levels.INFO)
       return
     end
@@ -126,6 +220,7 @@ function M.add_current()
   store.last_mark_id = mark.id
   write_store(store, store_path)
 
+  M.refresh_current_buf_signs()
   vim.notify(string.format("Bookmark added: %s:%d", loc.rel, loc.line), vim.log.levels.INFO)
 end
 
@@ -155,6 +250,7 @@ function M.remove_current()
   if store.last_mark_id == removed.id then store.last_mark_id = nil end
   write_store(store, store_path)
 
+  M.refresh_current_buf_signs()
   vim.notify(string.format("Bookmark removed: %s:%d", loc.rel, loc.line), vim.log.levels.INFO)
 end
 
@@ -193,8 +289,8 @@ local function load_picker_items()
   end
 
   table.sort(items, function(a, b)
-    if a.exists ~= b.exists then return a.exists end
     if a.recency ~= b.recency then return a.recency > b.recency end
+    if a.exists ~= b.exists then return a.exists end
     local a_created = tonumber(a.mark.created_at) or 0
     local b_created = tonumber(b.mark.created_at) or 0
     if a_created ~= b_created then return a_created > b_created end
@@ -205,6 +301,27 @@ local function load_picker_items()
   return items
 end
 
+local function touch_last_used(root, picked_item)
+  if type(picked_item) ~= "table" or type(picked_item.mark) ~= "table" then return end
+
+  local store, store_path = read_store(root)
+  local now = os.time()
+  local changed = false
+
+  for _, mark in ipairs(store.items or {}) do
+    local same_id = mark.id and picked_item.mark.id and mark.id == picked_item.mark.id
+    local same_pos = mark.path == picked_item.mark.path and tonumber(mark.line) == tonumber(picked_item.mark.line)
+    if same_id or same_pos then
+      mark.last_used_at = now
+      store.last_mark_id = mark.id or store.last_mark_id
+      changed = true
+      break
+    end
+  end
+
+  if changed then write_store(store, store_path) end
+end
+
 function M.show_list()
   local ok, snacks = pcall(require, "snacks")
   if not ok then
@@ -212,6 +329,7 @@ function M.show_list()
     return
   end
 
+  local root = get_project_root()
   local items = load_picker_items()
   if #items == 0 then
     vim.notify("No bookmarks for this project", vim.log.levels.INFO)
@@ -225,7 +343,30 @@ function M.show_list()
     matcher = { fuzzy = true, smartcase = true },
     preview = "file",
     focus = "input",
-    confirm = "close",
+    confirm = function(picker, item)
+      if not item then
+        picker:close()
+        return
+      end
+
+      local path = item.file
+      if not path or uv_stat(path) == nil then
+        vim.notify(string.format("Bookmark file is missing: %s", item.path or "?"), vim.log.levels.WARN)
+        return
+      end
+
+      touch_last_used(root, item)
+      picker:close()
+
+      vim.schedule(function()
+        vim.cmd("edit " .. vim.fn.fnameescape(path))
+        local line = tonumber(item.line) or 1
+        local max_line = vim.api.nvim_buf_line_count(0)
+        line = math.max(1, math.min(line, max_line))
+        vim.api.nvim_win_set_cursor(0, { line, 0 })
+        vim.cmd "normal! zz"
+      end)
+    end,
     win = {
       preview = { title = "Preview" },
     },
