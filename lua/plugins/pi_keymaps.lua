@@ -74,6 +74,7 @@ return {
             end,
             desc = "Toggle terminal FOLLOW",
           },
+          ["<Leader>ga"] = { "<Cmd>BlameColumnToggle<CR>", desc = "Toggle git blame annotations" },
           ["<Leader>gP"] = {
             function()
               local curtab = vim.api.nvim_get_current_tabpage()
