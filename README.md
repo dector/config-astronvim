@@ -31,6 +31,11 @@ Compared to the base AstroNvim template configuration, these are my repo changes
     - `<Leader>sg` → git files (`snacks.picker.git_files`)
 - **Added terminal escape keymap** (`lua/plugins/terminal_escape.lua`)
   - Terminal mode: `<C-\\><C-\\>` → exit terminal mode (`<C-\\><C-n>`)
+- **Added project bookmarks feature** (`lua/plugins/bookmarks.lua`, `lua/utils/bookmarks.lua`)
+  - `<Leader>ml` / `:BookmarkList` → list/search bookmarks in a Snacks picker with preview
+  - `<Leader>ma` / `:BookmarkAdd` → add bookmark for current `file + line`
+  - `<Leader>mA` / `:BookmarkRemove` → remove bookmark for current `file + line`
+  - Storage: one JSON file per project under `stdpath("data") .. "/bookmarks"`
 
 A template for getting started with [AstroNvim](https://github.com/AstroNvim/AstroNvim)
 
