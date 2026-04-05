@@ -1,3 +1,35 @@
+local function get_changed_git_files()
+  if vim.fn.executable "git" ~= 1 then
+    vim.notify("git is not installed", vim.log.levels.ERROR)
+    return nil
+  end
+
+  vim.fn.system "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+  if vim.v.shell_error ~= 0 then
+    vim.notify("Not inside a git repository", vim.log.levels.WARN)
+    return nil
+  end
+
+  local unstaged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --relative --diff-filter=ACMR"
+  local staged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --cached --relative --diff-filter=ACMR"
+  local untracked = vim.fn.systemlist "git -c core.quotepath=off ls-files --others --exclude-standard"
+
+  local files, seen = {}, {}
+  for _, f in ipairs(vim.list_extend(vim.list_extend(unstaged, staged), untracked)) do
+    if f ~= "" and not seen[f] then
+      seen[f] = true
+      files[#files + 1] = f
+    end
+  end
+
+  if #files == 0 then
+    vim.notify("No changed git files", vim.log.levels.INFO)
+    return nil
+  end
+
+  return files
+end
+
 ---@type LazySpec
 return {
   {
@@ -140,56 +172,133 @@ return {
           ["<Leader>fo"] = false,
           ["<Leader>so"] = { function() require("snacks").picker.recent() end, desc = "Find old files" },
           ["<Leader>fg"] = false,
-          ["<Leader>sg"] = {
+          ["<Leader>sG"] = {
             function()
-              if vim.fn.executable "git" ~= 1 then
-                vim.notify("git is not installed", vim.log.levels.ERROR)
-                return
-              end
-
-              vim.fn.system "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
-              if vim.v.shell_error ~= 0 then
-                vim.notify("Not inside a git repository", vim.log.levels.WARN)
-                return
-              end
-
-              local unstaged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --relative --diff-filter=ACMR"
-              local staged = vim.fn.systemlist "git -c core.quotepath=off diff --name-only --cached --relative --diff-filter=ACMR"
-              local untracked = vim.fn.systemlist "git -c core.quotepath=off ls-files --others --exclude-standard"
-
-              local files, seen = {}, {}
-              for _, f in ipairs(vim.list_extend(vim.list_extend(unstaged, staged), untracked)) do
-                if f ~= "" and not seen[f] then
-                  seen[f] = true
-                  files[#files + 1] = f
-                end
-              end
-
-              if #files == 0 then
-                vim.notify("No changed git files", vim.log.levels.INFO)
-                return
-              end
-
-              local grep_finder = require "snacks.picker.source.grep"
+              local files = get_changed_git_files()
+              if not files then return end
 
               require("snacks").picker.pick {
                 source = "grep",
                 title = "Grep in changed git files",
                 live = true,
-                dirs = files,
-                finder = function(opts, ctx)
-                  if ctx.filter.search == "" then
+                finder = function(_, ctx)
+                  local search = (ctx and ctx.filter and ctx.filter.search) or ""
+
+                  if search == "" then
                     local items = {}
                     for _, f in ipairs(files) do
                       items[#items + 1] = { file = f, text = f }
                     end
                     return items
                   end
-                  return grep_finder.grep(opts, ctx)
+
+                  if vim.fn.executable "rg" ~= 1 then
+                    vim.notify("rg is not installed", vim.log.levels.ERROR)
+                    return {}
+                  end
+
+                  local cmd = {
+                    "rg",
+                    "--color=never",
+                    "--no-heading",
+                    "--with-filename",
+                    "--line-number",
+                    "--column",
+                    "--smart-case",
+                    "--fixed-strings",
+                    "--max-columns=500",
+                    "--max-columns-preview",
+                    "--",
+                    search,
+                  }
+                  vim.list_extend(cmd, files)
+
+                  local out = vim.fn.systemlist(cmd)
+                  if vim.v.shell_error > 1 then
+                    return {}
+                  end
+
+                  local items, matched = {}, {}
+                  for _, line in ipairs(out) do
+                    local file, lnum, col, text = line:match("^(.-):(%d+):(%d+):(.*)$")
+                    if file and lnum and col and text then
+                      matched[file] = true
+                      items[#items + 1] = {
+                        file = file,
+                        pos = { tonumber(lnum), tonumber(col) - 1 },
+                        line = text,
+                        text = line,
+                      }
+                    end
+                  end
+
+                  local unmatched = #files
+                  for _ in pairs(matched) do
+                    unmatched = unmatched - 1
+                  end
+                  if unmatched > 0 then
+                    items[#items + 1] = { more = true, text = ("%d not displayed"):format(unmatched) }
+                  end
+
+                  return items
+                end,
+                format = function(item, picker)
+                  if item.more then return { { item.text, "SnacksPickerDimmed" } } end
+                  return require("snacks.picker.format").file(item, picker)
+                end,
+                confirm = function(picker, item)
+                  if not item or item.more then return end
+                  picker:norm(function()
+                    picker:close()
+                    vim.cmd.edit(vim.fn.fnameescape(item.file))
+                    if item.pos then pcall(vim.api.nvim_win_set_cursor, 0, item.pos) end
+                  end)
                 end,
               }
             end,
             desc = "Search text in changed git files",
+          },
+          ["<Leader>sg"] = {
+            function()
+              local files = get_changed_git_files()
+              if not files then return end
+
+              require("snacks").picker.pick {
+                source = "files",
+                title = "Find changed git files",
+                live = true,
+                finder = function(_, ctx)
+                  local search = vim.trim((ctx and ctx.filter and ctx.filter.search) or "")
+                  local search_l = search:lower()
+
+                  local items, unmatched = {}, 0
+                  for _, f in ipairs(files) do
+                    if search == "" or f:lower():find(search_l, 1, true) then
+                      items[#items + 1] = { file = f, text = f }
+                    else
+                      unmatched = unmatched + 1
+                    end
+                  end
+
+                  if search ~= "" and unmatched > 0 then
+                    items[#items + 1] = { more = true, text = ("%d not displayed"):format(unmatched) }
+                  end
+                  return items
+                end,
+                format = function(item, picker)
+                  if item.more then return { { item.text, "SnacksPickerDimmed" } } end
+                  return require("snacks.picker.format").file(item, picker)
+                end,
+                confirm = function(picker, item)
+                  if not item or item.more then return end
+                  picker:norm(function()
+                    picker:close()
+                    vim.cmd.edit(vim.fn.fnameescape(item.file))
+                  end)
+                end,
+              }
+            end,
+            desc = "Search changed git files",
           },
         },
         x = {
