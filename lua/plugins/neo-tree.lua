@@ -3,6 +3,7 @@ return {
   {
     "nvim-neo-tree/neo-tree.nvim",
     opts = function(_, opts)
+      opts.close_if_last_window = false
       opts.window = opts.window or {}
       opts.window.mappings = opts.window.mappings or {}
 

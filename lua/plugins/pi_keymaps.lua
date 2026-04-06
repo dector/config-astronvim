@@ -35,6 +35,9 @@ return {
   {
     "AstroNvim/astrocore",
     opts = {
+      autocmds = {
+        auto_quit = false,
+      },
       options = {
         opt = {
           scrolloff = 10,
