@@ -141,6 +141,17 @@ return {
             end,
             desc = "Toggle full-file git hunk preview",
           },
+          ["<Leader>gd"] = {
+            function()
+              local ok, lib = pcall(require, "diffview.lib")
+              if ok and lib.get_current_view() then
+                vim.cmd "DiffviewClose"
+              else
+                vim.cmd "DiffviewOpen"
+              end
+            end,
+            desc = "Toggle Diffview",
+          },
           ["<Leader>gD"] = {
             function()
               if vim.fn.executable "git" ~= 1 then
