@@ -148,39 +148,44 @@ return {
                 return
               end
 
-              vim.fn.system "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+              vim.fn.system { "git", "rev-parse", "--is-inside-work-tree" }
               if vim.v.shell_error ~= 0 then
                 vim.notify("Not inside a git repository", vim.log.levels.WARN)
                 return
               end
 
-              local unstaged = vim.fn.systemlist { "git", "--no-pager", "diff", "--no-color" }
-              local staged = vim.fn.systemlist { "git", "--no-pager", "diff", "--no-color", "--cached" }
-              local untracked = vim.fn.systemlist { "git", "-c", "core.quotepath=off", "ls-files", "--others", "--exclude-standard" }
+              local lines = {}
 
-              if #unstaged == 0 and #staged == 0 and #untracked == 0 then
+              local function add_block(title, diff_lines)
+                if #diff_lines == 0 then return end
+                if #lines > 0 then table.insert(lines, "") end
+                table.insert(lines, "# ===== " .. title .. " =====")
+                table.insert(lines, "")
+                vim.list_extend(lines, diff_lines)
+              end
+
+              local unstaged = vim.fn.systemlist { "git", "--no-pager", "diff", "--no-color" }
+              add_block("UNSTAGED", unstaged)
+
+              local staged = vim.fn.systemlist { "git", "--no-pager", "diff", "--no-color", "--cached" }
+              add_block("STAGED", staged)
+
+              local untracked = vim.fn.systemlist { "git", "-c", "core.quotepath=off", "ls-files", "--others", "--exclude-standard" }
+              if #untracked > 0 then
+                local untracked_patch = {}
+                for _, file in ipairs(untracked) do
+                  local patch = vim.fn.systemlist { "git", "--no-pager", "diff", "--no-color", "--no-index", "--", "/dev/null", file }
+                  if vim.v.shell_error <= 1 and #patch > 0 then
+                    if #untracked_patch > 0 then table.insert(untracked_patch, "") end
+                    vim.list_extend(untracked_patch, patch)
+                  end
+                end
+                add_block("UNTRACKED", untracked_patch)
+              end
+
+              if #lines == 0 then
                 vim.notify("No git changes", vim.log.levels.INFO)
                 return
-              end
-
-              local lines = {}
-              if #unstaged > 0 then
-                vim.list_extend(lines, { "# Unstaged changes", "" })
-                vim.list_extend(lines, unstaged)
-                table.insert(lines, "")
-              end
-
-              if #staged > 0 then
-                vim.list_extend(lines, { "# Staged changes", "" })
-                vim.list_extend(lines, staged)
-                table.insert(lines, "")
-              end
-
-              if #untracked > 0 then
-                vim.list_extend(lines, { "# Untracked files", "" })
-                for _, file in ipairs(untracked) do
-                  table.insert(lines, "#   " .. file)
-                end
               end
 
               vim.cmd "enew"
@@ -190,13 +195,35 @@ return {
               vim.bo[buf].swapfile = false
               vim.bo[buf].filetype = "diff"
               vim.bo[buf].modifiable = true
-              vim.api.nvim_buf_set_name(buf, "git://working-tree-diff")
+              pcall(vim.api.nvim_buf_set_name, buf, "git://all-changes.diff")
               vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
               vim.bo[buf].modifiable = false
               vim.bo[buf].readonly = true
               vim.bo[buf].modified = false
+              vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+              vim.keymap.set("n", "]f", function() vim.fn.search("^diff --git ", "W") end, {
+                buffer = buf,
+                silent = true,
+                desc = "Next file diff",
+              })
+              vim.keymap.set("n", "[f", function() vim.fn.search("^diff --git ", "bW") end, {
+                buffer = buf,
+                silent = true,
+                desc = "Previous file diff",
+              })
+              vim.keymap.set("n", "]h", function() vim.fn.search("^@@", "W") end, {
+                buffer = buf,
+                silent = true,
+                desc = "Next hunk",
+              })
+              vim.keymap.set("n", "[h", function() vim.fn.search("^@@", "bW") end, {
+                buffer = buf,
+                silent = true,
+                desc = "Previous hunk",
+              })
             end,
-            desc = "Show all git changes in one buffer",
+            desc = "Show all git changes in one scrollable buffer",
           },
 
           -- same action as AstroNvim's <leader>o
