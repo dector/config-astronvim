@@ -241,7 +241,7 @@ return {
           },
 
           -- same action as AstroNvim's <leader>o
-          ["<Leader>q"] = {
+          ["gF"] = {
             function()
               if vim.bo.filetype == "neo-tree" then
                 vim.cmd.wincmd "p"
